@@ -1,5 +1,6 @@
 website:
   sidebar:
     contents:
-      - 00_core.ipynb
+      - 00_help (library information).ipynb
+      - 00_nucleus (core api).ipynb
       - readme.ipynb
