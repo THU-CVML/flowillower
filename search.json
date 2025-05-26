@@ -1,0 +1,52 @@
+[
+  {
+    "objectID": "core.html",
+    "href": "core.html",
+    "title": "core",
+    "section": "",
+    "text": "source\n\nfoo\n\n foo ()",
+    "crumbs": [
+      "core"
+    ]
+  },
+  {
+    "objectID": "readme.html",
+    "href": "readme.html",
+    "title": "🌸 Flowillower 柳暗花明",
+    "section": "",
+    "text": "Install latest from the GitHub repository:\n$ pip install git+https://github.com/THU-CVML/flowillower.git\nor from conda\n$ conda install -c THU-CVML flowillower\nor from pypi\n$ pip install flowillower\n\n\n\nDocumentation can be found hosted on this GitHub repository’s pages. Additionally you can find package manager specific guidelines on conda and pypi respectively.\n\n\n\nFill me in please! Don’t forget code examples:\n\nfrom flowillower import init, log_metrics, log_model, push\nimport torch.nn as nn\n\n# Initialize an experiment (creates a local Git repo)\ninit(project_name=\"my_cool_exp\")\n\n# Log your model architecture\nmodel = nn.Sequential(nn.Linear(10, 32), nn.ReLU(), nn.Linear(32, 1))\nlog_model(model)\n\n# Log some fake metrics\nlog_metrics(step=1, metrics={\"loss\": 0.234, \"accuracy\": 0.89})\nlog_metrics(step=2, metrics={\"loss\": 0.123, \"accuracy\": 0.91})\n\n# Optional: push to a remote Git repo for team sharing or cloud viewing\npush(\"https://huggingface.co/spaces/yourname/yourapp\")",
+    "crumbs": [
+      "🌸 Flowillower 柳暗花明"
+    ]
+  },
+  {
+    "objectID": "readme.html#quickstart",
+    "href": "readme.html#quickstart",
+    "title": "🌸 Flowillower 柳暗花明",
+    "section": "",
+    "text": "Install latest from the GitHub repository:\n$ pip install git+https://github.com/THU-CVML/flowillower.git\nor from conda\n$ conda install -c THU-CVML flowillower\nor from pypi\n$ pip install flowillower\n\n\n\nDocumentation can be found hosted on this GitHub repository’s pages. Additionally you can find package manager specific guidelines on conda and pypi respectively.\n\n\n\nFill me in please! Don’t forget code examples:\n\nfrom flowillower import init, log_metrics, log_model, push\nimport torch.nn as nn\n\n# Initialize an experiment (creates a local Git repo)\ninit(project_name=\"my_cool_exp\")\n\n# Log your model architecture\nmodel = nn.Sequential(nn.Linear(10, 32), nn.ReLU(), nn.Linear(32, 1))\nlog_model(model)\n\n# Log some fake metrics\nlog_metrics(step=1, metrics={\"loss\": 0.234, \"accuracy\": 0.89})\nlog_metrics(step=2, metrics={\"loss\": 0.123, \"accuracy\": 0.91})\n\n# Optional: push to a remote Git repo for team sharing or cloud viewing\npush(\"https://huggingface.co/spaces/yourname/yourapp\")",
+    "crumbs": [
+      "🌸 Flowillower 柳暗花明"
+    ]
+  },
+  {
+    "objectID": "readme.html#contributing",
+    "href": "readme.html#contributing",
+    "title": "🌸 Flowillower 柳暗花明",
+    "section": "🙌 Contributing",
+    "text": "🙌 Contributing\nWe welcome contributions, ideas, and issues! See CONTRIBUTING.md or open a discussion to share your thoughts.\n📜 License: Apache 2.0\n\nInstall flowillower in Development mode\n# make sure flowillower package is installed in development mode\n$ pip install -e .\n\n# make changes under nbs/ directory\n# ...\n\n# compile to have changes apply to flowillower\n$ nbdev_prepare\n\n\n📂 Project Structure",
+    "crumbs": [
+      "🌸 Flowillower 柳暗花明"
+    ]
+  },
+  {
+    "objectID": "readme.html#why-the-name-flowillower",
+    "href": "readme.html#why-the-name-flowillower",
+    "title": "🌸 Flowillower 柳暗花明",
+    "section": "🧠 Why the name “flowillower”?",
+    "text": "🧠 Why the name “flowillower”?\nIt’s a blend of “willow” + “flower”, inspired by the Chinese idiom “柳暗花明又一村” (Liǔ àn huā míng yòu yī cūn) — light at the end of the tunnel.\nEven deeper: flow + will + over → “flow will over” → Break free from rigid workflows, discover breakthroughs, and bloom.",
+    "crumbs": [
+      "🌸 Flowillower 柳暗花明"
+    ]
+  }
+]
