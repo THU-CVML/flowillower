@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "flowillower"
+  site-url: "https://THU-CVML.github.io/flowillower"
+  description: "A graceful, distributed, and Git-powered experiment tracking and model explanation tool for AI researchers. See through every forward pass. Flow will over — and flowers will bloom. 一个优雅、分布式的 AI 实验记录与可视化工具，致力于打破模型训练中的“黑盒”迷雾，让每一次 forward 都可见、可溯、可协作 —— 柳暗花明，终见曙光。"
+  repo-branch: main
+  repo-url: "https://github.com/THU-CVML/flowillower"
