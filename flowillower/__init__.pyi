@@ -1,9 +1,22 @@
 from . import core
+from . import flowillower_app_template
 from . import help
 from . import nucleus
 
 from .core import (
     foo,
+)
+from .flowillower_app_template import (
+    df,
+    indices,
+    num_points,
+    num_turns,
+    radius,
+    src,
+    streamlit_app,
+    theta,
+    x,
+    y,
 )
 from .help import (
     author_name_en_us,
@@ -18,21 +31,56 @@ from .help import (
     pretty_name,
     upgrade_command_pip,
 )
+from .nucleus import (
+    Track,
+    Trial,
+    VisualizationApp,
+    WORD_MAP,
+    all_tracks,
+    app_template_path,
+    max_global_step,
+    number_to_phrase,
+    test_track,
+    train_track,
+    val_track,
+)
 
 __all__ = [
+    "Track",
+    "Trial",
+    "VisualizationApp",
+    "WORD_MAP",
+    "all_tracks",
+    "app_template_path",
     "author_name_en_us",
     "author_name_zh_cn",
     "core",
+    "df",
+    "flowillower_app_template",
     "foo",
     "github_repo",
     "github_user",
     "help",
     "import_name",
+    "indices",
     "lib_name",
     "lib_name_en_us",
     "lib_name_zh_cn",
     "lib_paths",
+    "max_global_step",
     "nucleus",
+    "num_points",
+    "num_turns",
+    "number_to_phrase",
     "pretty_name",
+    "radius",
+    "src",
+    "streamlit_app",
+    "test_track",
+    "theta",
+    "train_track",
     "upgrade_command_pip",
+    "val_track",
+    "x",
+    "y",
 ]
