@@ -1,3 +1,3 @@
 [submodule "src/python/flowillower_app_template"]
 	path = src/python/flowillower_app_template
-	url = https://huggingface.co/spaces/THU-CVML/flowillower_app_template
+	url = git@hf.co:spaces/THU-CVML/flowillower_app_template

@@ -51,6 +51,10 @@ d = {
                 "nucleus (core api).html#trial.report_step_lock",
                 "flowillower/nucleus.py",
             ),
+            "flowillower.nucleus.Trial.report_step_third_party": (
+                "nucleus (core api).html#trial.report_step_third_party",
+                "flowillower/nucleus.py",
+            ),
             "flowillower.nucleus.Trial.report_test": (
                 "nucleus (core api).html#trial.report_test",
                 "flowillower/nucleus.py",

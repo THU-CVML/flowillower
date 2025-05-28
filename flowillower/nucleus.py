@@ -152,9 +152,9 @@ class Trial(VisualizationApp):
     )
     setup_immediately: bool = ~RandomVariable(True, description="")
 
+    # report_format:str = "flowillower/toml", # 我们这个框架定义的格式
     report_to: List[str] = ~RandomVariable(
         default_factory=lambda: [
-            "flowillower/toml",  # 我们这个框架定义的格式
             # "flowillower/csv",
             # "tensorboard", # 本地
             # "wandb", #
@@ -168,11 +168,35 @@ class Trial(VisualizationApp):
     )
 
     def setup(self):
+        if not self.is_on_main_process:
+            # TODO 应该读取文件获得信息，确保信息正确。
+            return
         self.trial_start_date = datetime.now()
 
+        # if "flowillower/toml" in self.report_to:
         super().setup()  # 确保app仓库存在了
         trial_path = self.trial_path
         trial_path.mkdir(parents=True, exist_ok=True)
+
+        if "wandb" in self.report_to:
+            # try:
+            import wandb
+
+            # except:
+            # raise ImportError("wandb is not installed. ")
+            self.third_parties["wandb"] = wandb.init(
+                project=self.study_name,
+                name=self.trial_name,
+                notes=self.trial_description,
+            )
+        if "swanlab" in self.report_to:
+            import swanlab
+
+            self.third_parties["swanlab"] = swanlab.init(
+                project=self.study_name,
+                experiment_name=self.trial_name,
+                description=self.trial_description,
+            )
 
     @property
     def study_path(self) -> Path:
@@ -193,19 +217,22 @@ class Trial(VisualizationApp):
         return self.study_path / self.trial_name
 
     def __post_init__(self):
+        self.third_parties = dict()
         if self.trial_name is None:
             self.trial_name = self.random_new_trial_name()
         if self.setup_immediately:
             self.setup()
 
 
-# %% ../src/notebooks/00_nucleus (core api).ipynb 17
+# %% ../src/notebooks/00_nucleus (core api).ipynb 18
 from fastcore.all import patch
 import tomli_w
 
 
 @patch
 def write_input_variables(self: Trial):
+    if not self.is_on_main_process:
+        return
     report_path = self.trial_path / "input_variables.toml"
     report_path.parent.mkdir(parents=True, exist_ok=True)
     with open(report_path, "wb") as f:
@@ -213,15 +240,43 @@ def write_input_variables(self: Trial):
 
 
 @patch
-def report_input_variables(self: Trial, input_variables: dict):
+def report_input_variables(
+    self: Trial, input_variables: dict, wandb_config_important=True
+) -> dict:
     """
     Report the trial arguments to the specified platforms.
     """
+    if not self.is_on_main_process:
+        return
+
+    if "wandb" in self.report_to:
+        import wandb
+
+        wandb_dict = wandb.config.as_dict()
+        if wandb_config_important:
+            input_variables = {**input_variables, **wandb_dict}  # 压轴出手
+        else:
+            input_variables = {**wandb_dict, **input_variables}
+
     self.input_variables |= input_variables
+
+    if "wandb" in self.report_to:
+        import wandb
+
+        wandb.config.update(self.input_variables)
+        # wandb.config.update(allow_val_change=True)
+        # args = wandb.config # type: ignore
+
+    if "swanlab" in self.report_to:
+        import swanlab
+
+        swanlab.config.update(self.input_variables)
+
     self.write_input_variables()
+    return self.input_variables
 
 
-# %% ../src/notebooks/00_nucleus (core api).ipynb 21
+# %% ../src/notebooks/00_nucleus (core api).ipynb 22
 from typing import Optional, List, Set
 
 all_tracks: Set["Track"] = set()
@@ -258,7 +313,7 @@ train_track = Track(name="train")
 val_track = Track(name="val")
 test_track = Track(name="test")
 
-# %% ../src/notebooks/00_nucleus (core api).ipynb 23
+# %% ../src/notebooks/00_nucleus (core api).ipynb 24
 from fastcore.basics import patch
 from filelock import FileLock
 from pathlib import Path
@@ -267,7 +322,25 @@ import tomli
 
 
 @patch
-def report_step(self: Trial, data: dict, global_step: int, track_name: str = "default"):
+def report_step_third_party(
+    self: Trial, information: dict, global_step: int, track_name: str = "default"
+):
+    postfix = f"-{track_name}"
+    information = {f"{k}{postfix}": v for k, v in information.items()}
+    if "wandb" in self.report_to:
+        import wandb
+
+        wandb.log(information, step=global_step)
+    if "swanlab" in self.report_to:
+        import swanlab
+
+        swanlab.log(information, step=global_step)
+
+
+@patch
+def report_step(
+    self: Trial, information: dict, global_step: int, track_name: str = "default"
+):
     """
     Report one step's data to the specified track.
 
@@ -277,13 +350,15 @@ def report_step(self: Trial, data: dict, global_step: int, track_name: str = "de
 
     Each track has its own TOML file using [[metrics]] array of tables.
     """
+    if not self.is_on_main_process:
+        return
     scalar_dir = self.trial_path / "logs/scalar"
     scalar_dir.mkdir(parents=True, exist_ok=True)
 
     file_name = f"metrics_{track_name}.toml"
     report_path = scalar_dir / file_name
 
-    entry = {"global_step": global_step, **data}
+    entry = {"global_step": global_step, **information}
 
     if not report_path.exists():
         # First write: create file with initial entry
@@ -300,10 +375,12 @@ def report_step(self: Trial, data: dict, global_step: int, track_name: str = "de
         with open(report_path, "wb") as f:
             tomli_w.dump({"metrics": metrics}, f)
 
+    self.report_step_third_party(information, global_step, track_name)
+
 
 @patch
 def report_step_lock(
-    self: Trial, data: dict, global_step: int, track_name: str = "default"
+    self: Trial, information: dict, global_step: int, track_name: str = "default"
 ):
     """
     Efficiently append a step's data to a TOML log file under a named track.
@@ -319,7 +396,7 @@ def report_step_lock(
 
     # Format the data as TOML string manually
     lines = ["\n[[metrics]]", f"global_step = {global_step}"]
-    for k, v in data.items():
+    for k, v in information.items():
         if isinstance(v, str):
             lines.append(f'{k} = "{v}"')
         elif isinstance(v, bool):
@@ -337,34 +414,34 @@ def report_step_lock(
 
 
 @patch
-def report(self: Trial, data: dict, track: Track, step_forward: bool = True):
+def report(self: Trial, information: dict, track: Track, step_forward: bool = True):
     """
     Report the trial arguments to the specified platforms.
     """
     if step_forward:
         track.step_once()
-    return self.report_step(data, track.global_step, track_name=track.name)
+    return self.report_step(information, track.global_step, track_name=track.name)
 
 
 @patch
-def report_train(self: Trial, data: dict, step_forward: bool = True):
+def report_train(self: Trial, information: dict, step_forward: bool = True):
     """
     Report the trial arguments to the training track.
     """
-    return self.report(data, train_track, step_forward)
+    return self.report(information, train_track, step_forward)
 
 
 @patch
-def report_val(self: Trial, data: dict, step_forward: bool = True):
+def report_val(self: Trial, information: dict, step_forward: bool = True):
     """
     Report the trial arguments to the validation track.
     """
-    return self.report(data, val_track, step_forward)
+    return self.report(information, val_track, step_forward)
 
 
 @patch
-def report_test(self: Trial, data: dict, step_forward: bool = True):
+def report_test(self: Trial, information: dict, step_forward: bool = True):
     """
     Report the trial arguments to the test track.
     """
-    return self.report(data, test_track, step_forward)
+    return self.report(information, test_track, step_forward)
