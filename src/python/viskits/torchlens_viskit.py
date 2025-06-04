@@ -265,8 +265,9 @@ class TorchlensFlowVisKit(VisKit):
                 label: model_history[label].tensor_contents 
                 for label in model_history.layer_labels
             }
-            with treescope.using_expansion_strategy(max_height=None):
-                html_str = treescope.render_to_html(tensor_contents_dict, compressed=True)
+            with treescope.active_autovisualizer.set_scoped(treescope.ArrayAutovisualizer()):
+                with treescope.using_expansion_strategy(max_height=None):
+                    html_str = treescope.render_to_html(tensor_contents_dict, compressed=True)
             with open(html_file_full_path, "w", encoding="utf-8") as f: 
                 f.write(html_str)
             print(f"生成了HTML文件: {html_file_full_path}")

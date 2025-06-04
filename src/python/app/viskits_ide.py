@@ -35,6 +35,7 @@ try:
     import flowillower.viskits.treescope_viskit 
     import flowillower.viskits.pygwalker_viskit 
     import flowillower.viskits.torchlens_viskit 
+    from flowillower.app.theme_selector import render_theme_selector
 
 except ImportError as e:
     st.error(
@@ -43,6 +44,7 @@ except ImportError as e:
         f"\n详细信息: {e}"
     )
     st.stop()
+render_theme_selector()  # 渲染主题选择器
 
 
 # --- 会话状态初始化 ---
