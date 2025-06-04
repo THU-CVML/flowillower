@@ -1,4 +1,4 @@
-# flowillower/app/component_ide.py
+# flowillower/app/viskits_ide.py
 import streamlit as st
 from pathlib import Path
 import tempfile
@@ -10,12 +10,16 @@ import tomli
 # https://github.com/VikParuchuri/marker/issues/442
 import os
 import torch
-torch.classes.__path__ = [os.path.join(torch.__path__[0], torch.classes.__file__)] 
+if hasattr(torch, 'classes') and hasattr(torch.classes, '__file__') and torch.classes.__file__ is not None:
+    torch.classes.__path__ = [os.path.join(Path(torch.__file__).parent.as_posix(), Path(torch.classes.__file__).name)]
+else:
+    print("Warning: PyTorch C++ extension path fix could not be applied fully or is not needed.")
+
 
 # --- 应用标题和配置 ---
 st.set_page_config(layout="wide", page_title="视件视界 - Flowillower 视件IDE") 
-st.title("🔬 视件视界 - Flowillower 可视化组件集成开发环境") 
-st.header("🍺 VisKits VisScope - Visualization Component IDE for Flowillower") 
+st.title("🔬 视件视界 - Flowillower 可视化视件集成开发环境") 
+st.header("🍺 VisKits VisScope - VisKit IDE for Flowillower") 
 st.markdown("在此环境中独立测试、调试和预览您的可视化视件。") 
 
 # --- 模块导入 (使用基于包的绝对导入) ---
@@ -26,12 +30,11 @@ try:
         VisKit, 
         PYDANTIC_AVAILABLE 
     )
-    # # 显式导入所有视件模块以确保它们被注册
-    # # Explicitly import all Viskit modules to ensure they are registered
+    # 显式导入所有视件模块以确保它们被注册
     import flowillower.viskits.scalar_dashboard_viskit 
-    import flowillower.viskits.treescope_viskit
+    import flowillower.viskits.treescope_viskit 
     import flowillower.viskits.pygwalker_viskit 
-    # import flowillower.viskits.torchlens_viskit # Assuming you will rename/create this
+    import flowillower.viskits.torchlens_viskit 
 
 except ImportError as e:
     st.error(
@@ -61,7 +64,7 @@ if "all_simulated_steps" not in st.session_state:
     st.session_state.all_simulated_steps = []
 if "last_reported_assets" not in st.session_state: 
     st.session_state.last_reported_assets = None
-if "last_report_params" not in st.session_state: # 新增：用于显示上一次render_report_ui返回的参数
+if "last_report_params" not in st.session_state: 
     st.session_state.last_report_params = None
 
 
@@ -138,7 +141,10 @@ with st.sidebar:
     )
     st.markdown(f"**临时Trial根路径:** `{st.session_state.trial_root_path_str}`")
     
-    example_data_target_dir = Path(st.session_state.trial_root_path_str) / "example_assets_for_ide"
+    # example_data_target_dir 不再直接传递给 Viskit 的 generate_example_data
+    # Viskit 的 report_data 方法会使用其 private_storage_path
+    # example_data_target_dir is no longer passed directly to Viskit's generate_example_data
+    # Viskit's report_data method will use its private_storage_path
     
     example_gen_config_str = "{}"
     if st.session_state.selected_viskit_type_name == "treescope_model_viewer": 
@@ -191,10 +197,15 @@ with st.sidebar:
     if st.button("📊 生成示例数据 (填充/覆盖)"): 
         if SelectedVisKitClass:
             try:
-                if example_data_target_dir.exists():
-                    shutil.rmtree(example_data_target_dir)
-                example_data_target_dir.mkdir(parents=True, exist_ok=True)
-                
+                # example_data_target_dir 现在更多的是一个概念，实际文件由Viskit的report_data写入其私有存储
+                # example_data_target_dir is now more of a concept, actual files are written by Viskit's report_data to its private storage
+                # 我们仍然可以创建它，以防某些旧的 generate_example_data 实现可能直接使用它（尽管不推荐）
+                # We can still create it in case some older generate_example_data implementations might use it directly (though not recommended)
+                example_data_target_dir_for_cleanup = Path(st.session_state.trial_root_path_str) / "example_assets_for_ide" # Used for potential cleanup
+                if example_data_target_dir_for_cleanup.exists():
+                     shutil.rmtree(example_data_target_dir_for_cleanup) # Clean up old assets if any
+                # example_data_target_dir_for_cleanup.mkdir(parents=True, exist_ok=True) # No longer needed to pass this dir
+
                 parsed_example_gen_config = {}
                 if example_gen_config_str:
                     try:
@@ -205,6 +216,8 @@ with st.sidebar:
                 newly_generated_map = SelectedVisKitClass.generate_example_data(
                     ide_instance_id=st.session_state.viskit_instance_id,  
                     ide_trial_root_path=Path(st.session_state.trial_root_path_str), 
+                    # example_data_target_dir 参数已从基类 generate_example_data 中移除
+                    # example_data_target_dir parameter removed from base class generate_example_data
                     data_sources_config=parsed_example_gen_config
                 )
                 st.session_state.generated_data_sources_map_for_current_config = newly_generated_map 
@@ -334,11 +347,12 @@ if active_viskit_instance:
         st.subheader(f"测试 `{SelectedVisKitClass.get_display_name() if SelectedVisKitClass else ''}` 的 `report_data` 方法")
         report_ui_container = st.container(border=True)
         
+        # 用户修复的逻辑：直接在render_report_ui返回时处理
+        # User's fix: handle directly when render_report_ui returns
         report_params = active_viskit_instance.render_report_ui(report_ui_container) 
-        has_new_report_request = report_params is not None and isinstance(report_params, dict)
-
-        if has_new_report_request:
-            st.session_state.last_report_params = report_params 
+        
+        if report_params and isinstance(report_params, dict): # 如果render_report_ui返回了有效的参数 (意味着用户在其中提交了)
+            st.session_state.last_report_params = report_params # 保存以供显示
             try:
                 returned_asset_descriptions = active_viskit_instance.report_data(**report_params) 
                 st.session_state.last_reported_assets = returned_asset_descriptions
@@ -347,13 +361,18 @@ if active_viskit_instance:
                 active_viskit_instance.load_data() 
                 sync_steps_from_viskit(active_viskit_instance) 
                 
-                st.rerun() 
+                # 清除 last_report_params 以避免在下次rerun时重复处理 (除非render_report_ui再次返回新值)
+                # Clear last_report_params to avoid reprocessing on next rerun (unless render_report_ui returns new values again)
+                # st.session_state.last_report_params = None # 或者让它保留以显示上一次的参数 Or let it stay to show last params
+                st.rerun() # 强制刷新整个应用
 
             except Exception as e:
                 st.error(f"`report_data` 调用失败: {e}")
                 st.exception(e)
                 st.session_state.last_reported_assets = {"error": str(e)}
         
+        # 总是显示上一次提交的参数和结果 (如果有)
+        # Always show last submitted params and results (if any)
         if st.session_state.last_report_params and isinstance(st.session_state.last_report_params, dict):
             st.markdown("---")
             st.write("上次提交的 `report_data` 调用参数:")
@@ -377,7 +396,7 @@ if st.sidebar.button("清理当前会话的临时Trial目录"):
     st.session_state.all_simulated_steps = []
     st.session_state.current_simulated_global_step = 0
     st.session_state.last_reported_assets = None
-    st.session_state.last_report_params = None # 清理这个状态
+    st.session_state.last_report_params = None 
     st.rerun()
 
 # 导入版本信息 (Import version information)

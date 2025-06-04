@@ -8,7 +8,7 @@ import tomli
 import tomli_w
 from dataclasses import is_dataclass 
 
-# 尝试导入Pydantic和streamlit-pydantic
+# Try importing Pydantic and streamlit-pydantic
 PYDANTIC_AVAILABLE = False
 STREAMLIT_PYDANTIC_AVAILABLE = False
 try:
@@ -26,48 +26,35 @@ except ImportError:
 
 ConfigPydanticModelType = TypeVar('ConfigPydanticModelType', bound='BaseModel' if PYDANTIC_AVAILABLE else Any)
 
-# --- VisKit Registry --- # Changed from VISUALIZER_REGISTRY
-VISKIT_REGISTRY: Dict[str, Type["VisKit"]] = {} # Changed from VisualizationComponent
+VISKIT_REGISTRY: Dict[str, Type["VisKit"]] = {} 
 
-def register_viskit(name: str): # Changed from register_visualizer
-    """
-    一个装饰器，用于将视件类注册到全局注册表。
-    A decorator to register a VisKit class to the global registry.
-    """
-    def decorator(cls: Type["VisKit"]): # Changed from VisualizationComponent
+def register_viskit(name: str): 
+    def decorator(cls: Type["VisKit"]): 
         if name in VISKIT_REGISTRY:
             print(f"警告: 视件 '{name}' 已被注册，将被覆盖。") 
         VISKIT_REGISTRY[name] = cls
         return cls
     return decorator
 
-def get_viskit_class(type_name: str) -> Optional[Type["VisKit"]]: # Changed from get_visualizer_class
-    """
-    从注册表中获取视件类。
-    Gets a VisKit class from the registry.
-    """
+def get_viskit_class(type_name: str) -> Optional[Type["VisKit"]]: 
     return VISKIT_REGISTRY.get(type_name)
 
-# --- Abstract Base Class for VisKits ---
-class VisKit(ABC): # Changed from VisualizationComponent
-    """
-    视件 (VisKit) 的抽象基类。
-    Abstract base class for all VisKits.
-    """
+class VisKit(ABC): 
     ui_config: Any 
+    LOGICAL_DATA_SOURCE_NAME = "default_data_source" # Default logical name for primary data
+    COLLECTION_DATA_TYPE_FOR_IDE = "generic_ide_collection_v1" # Default collection type for IDE if many assets
 
     def __init__(self,
-                 instance_id: str, # Renamed from component_instance_id for brevity
+                 instance_id: str, 
                  trial_root_path: Path,
                  data_sources_map: Dict[str, Dict[str, Any]], 
-                 specific_ui_config_dict: Optional[Dict[str, Any]] = None # Renamed for clarity
+                 specific_ui_config_dict: Optional[Dict[str, Any]] = None 
                 ):
-        self.instance_id = instance_id # Renamed
+        self.instance_id = instance_id 
         self.trial_root_path = trial_root_path
         self.data_sources_map = data_sources_map
         
-        # 视件的私有存储路径 (VisKit's private storage path)
-        self.private_storage_path = self.trial_root_path / "viskits_data" / self.instance_id # Changed dir name
+        self.private_storage_path = self.trial_root_path / "viskits_data" / self.instance_id 
         self.private_storage_path.mkdir(parents=True, exist_ok=True)
 
         ConfigModelClass = self.get_config_model()
@@ -83,7 +70,7 @@ class VisKit(ABC): # Changed from VisualizationComponent
         if loaded_config_dict:
             initial_values.update(loaded_config_dict) 
 
-        if specific_ui_config_dict: # Renamed parameter
+        if specific_ui_config_dict: 
             initial_values.update(specific_ui_config_dict)
 
         if ConfigModelClass and PYDANTIC_AVAILABLE and issubclass(ConfigModelClass, BaseModel):
@@ -143,10 +130,16 @@ class VisKit(ABC): # Changed from VisualizationComponent
 
 
     def _get_data_asset_info(self, logical_name: str = "default") -> Optional[Dict[str, Any]]:
-        return self.data_sources_map.get(logical_name)
+        # If logical_name is not provided, use the class's default logical name
+        if logical_name == "default":
+            logical_name_to_use = getattr(self, 'LOGICAL_DATA_SOURCE_NAME', 'default')
+        else:
+            logical_name_to_use = logical_name
+        return self.data_sources_map.get(logical_name_to_use)
+
 
     def _get_data_asset_path(self, logical_name: str = "default") -> Optional[Path]:
-        asset_info = self._get_data_asset_info(logical_name)
+        asset_info = self._get_data_asset_info(logical_name) # Uses the potentially overridden logical_name
         if asset_info and "path" in asset_info:
             path_str_or_obj = asset_info["path"]
             if not isinstance(path_str_or_obj, (str, Path)):
@@ -198,14 +191,12 @@ class VisKit(ABC): # Changed from VisualizationComponent
     @classmethod
     def get_display_name(cls) -> str: 
         name = cls.__name__
-        # Remove "VisKit" suffix if present, for a cleaner display name
         if name.endswith("VisKit"): 
             name = name[:-len("VisKit")]
-        elif name.endswith("Visualizer"): # Also handle old suffix if some files are not yet renamed
+        elif name.endswith("Visualizer"): 
              name = name[:-len("Visualizer")]
-
         
-        for reg_name, comp_cls in VISKIT_REGISTRY.items(): # Changed to VISKIT_REGISTRY
+        for reg_name, comp_cls in VISKIT_REGISTRY.items(): 
             if comp_cls == cls:
                 name = reg_name 
                 break
@@ -220,7 +211,10 @@ class VisKit(ABC): # Changed from VisualizationComponent
     def _generate_example_payloads_and_steps(cls, 
                                              data_sources_config: Optional[Dict[str, Any]] = None
                                              ) -> List[Dict[str, Any]]:
-        pass
+        # Subclasses must implement this to provide a list of dicts,
+        # each dict being the kwargs for a single call to report_data.
+        # Example: [{"data_payload": ..., "step": ...}, {"data_payload": ..., "step": ...}]
+        return [] 
         
     @classmethod
     def generate_example_data(cls,
@@ -228,7 +222,7 @@ class VisKit(ABC): # Changed from VisualizationComponent
                               ide_trial_root_path: Path, 
                               data_sources_config: Optional[Dict[str, Any]] = None
                              ) -> Dict[str, Dict[str, Any]]:
-        temp_vis_instance = cls( # Changed to cls
+        temp_vis_instance = cls( 
             instance_id=ide_instance_id, 
             trial_root_path=ide_trial_root_path,   
             data_sources_map={},                   
@@ -264,31 +258,56 @@ class VisKit(ABC): # Changed from VisualizationComponent
             st.error(f"视件 '{cls.get_display_name()}' 的 report_data 未能成功返回任何资产描述。")
             return {}
 
-        unique_asset_paths = {desc['path'] for desc in all_reported_assets if 'path' in desc}
+        # --- Logic to construct data_sources_map for the IDE ---
+        # This map tells the Viskit instance (when re-instantiated in IDE) where to find the data it just generated.
+        
+        # Strategy:
+        # 1. If all reported assets point to the *same* 'path' (e.g., an aggregating log file),
+        #    then the map will have one entry using cls.LOGICAL_DATA_SOURCE_NAME.
+        # 2. If reported assets have *different* 'paths' (e.g., one file per step for Treescope),
+        #    then the map will have one entry (key cls.LOGICAL_DATA_SOURCE_NAME) whose value
+        #    is a "collection" descriptor, containing all individual asset descriptions in an 'items' list.
+        #    The 'data_type' of this collection descriptor will be cls.COLLECTION_DATA_TYPE_FOR_IDE.
+
+        unique_asset_paths = {desc['path'] for desc in all_reported_assets if isinstance(desc, dict) and 'path' in desc}
+        logical_ds_name_for_map = getattr(cls, 'LOGICAL_DATA_SOURCE_NAME', 'default_data_source')
 
         if len(unique_asset_paths) == 1: 
+            # All reports updated the same underlying asset/file.
+            # Use the last asset description as it should be the most up-to-date.
             final_asset_desc = all_reported_assets[-1]
-            # 子类应定义 LOGICAL_DATA_SOURCE_NAME 如果它们期望特定的键
-            # Subclasses should define LOGICAL_DATA_SOURCE_NAME if they expect a specific key
-            logical_ds_name = getattr(cls, 'LOGICAL_DATA_SOURCE_NAME', 'default_reported_asset') 
-            return {logical_ds_name: final_asset_desc}
-        else: 
-            collection_data_type = getattr(cls, 'COLLECTION_DATA_TYPE_FOR_IDE', f"{cls.__name__}_ide_collection")
-            collection_display_name = f"{cls.get_display_name()} - 示例数据集合"
-            group_id_source = (data_sources_config or {}).get("group_id", all_reported_assets[0].get("group_id", ide_instance_id))
+            return {logical_ds_name_for_map: final_asset_desc}
+        elif len(unique_asset_paths) > 1: 
+            # Multiple distinct assets were reported (e.g., one file per step).
+            # The Viskit's load_data method will expect a collection.
+            collection_data_type = getattr(cls, 'COLLECTION_DATA_TYPE_FOR_IDE', f"{cls.__name__}_ide_collection_v1")
+            
+            # Try to infer a display name for the collection
+            # This could come from a common group_id or the Viskit's display name
+            collection_display_name = f"{cls.get_display_name()} - 示例数据"
+            group_id_source = (data_sources_config or {}).get("group_id")
+            if not group_id_source and all_reported_assets:
+                group_id_source = all_reported_assets[0].get("group_id", ide_instance_id)
+            if group_id_source:
+                collection_display_name = f"{group_id_source.replace('_',' ').title()} - 示例集合"
+
 
             return {
-                "default_collection": { # 使用一个更通用的键名 Use a more generic key name
-                    "asset_id": f"collection_for_{ide_instance_id}_{group_id_source}",
-                    "data_type": collection_data_type,
+                logical_ds_name_for_map: { 
+                    "asset_id": f"collection_for_{ide_instance_id}_{group_id_source}", # Unique ID for the collection itself
+                    "data_type": collection_data_type, # The type load_data will check for a collection
                     "display_name": collection_display_name,
-                    "items": all_reported_assets, 
-                    "group_id_source": group_id_source
+                    "items": all_reported_assets, # List of individual asset descriptions
+                    "group_id_source": group_id_source # Original group_id if relevant
                 }
             }
+        else: # No assets with paths were reported
+            st.warning(f"视件 '{cls.get_display_name()}' 的 report_data 未返回任何带有效路径的资产描述。")
+            return {}
+
 
     def _get_config_file_path(self) -> Path:
-        return self.private_storage_path / "_ui_config.toml" # Changed to private_storage_path
+        return self.private_storage_path / "_ui_config.toml" 
 
     def save_ui_config(self) -> None:
         config_file = self._get_config_file_path()
