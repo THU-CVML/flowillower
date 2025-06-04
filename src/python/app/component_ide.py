@@ -23,6 +23,7 @@ try:
     import flowillower.visualizers.scalar_dashboard_visualizer
     import flowillower.visualizers.treescope_visualizer
     import flowillower.visualizers.pygwalker_visualizer
+    import flowillower.visualizers.torchlens_visualizer
 
 except ImportError as e:
     st.error(
@@ -135,13 +136,24 @@ with st.sidebar:
     )
 
     example_gen_config_str = "{}"
-    if (
-        st.session_state.selected_visualizer_type_name == "treescope_model_viewer"
-    ):  # 硬编码检查特定组件类型 Hardcoded check for specific component type
+    # 为特定组件类型提供示例生成配置输入框
+    if st.session_state.selected_visualizer_type_name == "treescope_model_viewer": 
         example_gen_config_str = st.text_input(
-            "示例数据生成配置 (JSON)",
-            value='{"group_id": "my_ide_model_group"}',
-            help='例如: {"group_id": "custom_group_name"} (特定于Treescope查看器)',
+            "示例数据生成配置 (JSON) - Treescope",
+            value='{"group_id": "my_ide_treescope_group"}', # 更新默认值 Updated default value
+            help='例如: {"group_id": "custom_group_name"} (特定于Treescope查看器)'
+        )
+    elif st.session_state.selected_visualizer_type_name == "torchlens_flow_viewer": # 新增 Torchlens 配置 New Torchlens config
+        example_gen_config_str = st.text_input(
+            "示例数据生成配置 (JSON) - Torchlens",
+            value='{"group_id": "my_ide_torchlens_group"}',
+            help='例如: {"group_id": "custom_cnn_flow"} (特定于Torchlens查看器)'
+        )
+    elif st.session_state.selected_visualizer_type_name == "pygwalker_interactive_dashboard":
+        example_gen_config_str = st.text_input(
+            "示例数据生成配置 (JSON) - Pygwalker",
+            value='{}', 
+            help='(当前未使用 - Currently unused)'
         )
 
     if st.button("生成示例数据"):
@@ -221,10 +233,27 @@ with st.sidebar:
         else:
             st.warning("请先选择一个组件类型。")
 
+    default_specific_config = "{}"
+    if st.session_state.selected_visualizer_type_name == "scalar_metrics_dashboard":
+        default_specific_config = '{"charts_per_row": 2, "chart_height": 400}'
+    elif st.session_state.selected_visualizer_type_name == "treescope_model_viewer":
+        default_specific_config = '{"html_height": 700}'
+    elif st.session_state.selected_visualizer_type_name == "torchlens_flow_viewer": # 新增 Torchlens 默认配置 New Torchlens default config
+        default_specific_config = '{"html_height": 700, "pdf_height": 700}'
+    elif st.session_state.selected_visualizer_type_name == "pygwalker_interactive_dashboard":
+        default_specific_config = '{"pyg_spec_io_mode": "rw"}'
+    
+    if "last_selected_visualizer_for_config" not in st.session_state or \
+       st.session_state.last_selected_visualizer_for_config != st.session_state.selected_visualizer_type_name:
+        st.session_state.component_specific_config_str = default_specific_config
+        st.session_state.last_selected_visualizer_for_config = st.session_state.selected_visualizer_type_name
+
+
     st.session_state.component_specific_config_str = st.text_area(
-        "组件特定配置 (JSON)",
-        value=st.session_state.component_specific_config_str,
+        "组件特定配置 (JSON)", 
+        value=st.session_state.component_specific_config_str, 
         height=100,
+        key=f"specific_config_text_area_{st.session_state.selected_visualizer_type_name}" 
     )
 
     if st.button("🚀 实例化组件", type="primary"):
