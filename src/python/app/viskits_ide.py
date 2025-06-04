@@ -14,7 +14,7 @@ torch.classes.__path__ = [os.path.join(torch.__path__[0], torch.classes.__file__
 
 # --- 应用标题和配置 ---
 st.set_page_config(layout="wide", page_title="视件视界 - Flowillower 视件IDE") 
-st.title("🔬 视件视界 - Flowillower 可视化组件集成开发环节") 
+st.title("🔬 视件视界 - Flowillower 可视化组件集成开发环境") 
 st.header("🍺 VisKits VisScope - Visualization Component IDE for Flowillower") 
 st.markdown("在此环境中独立测试、调试和预览您的可视化视件。") 
 
@@ -29,8 +29,8 @@ try:
     # # 显式导入所有视件模块以确保它们被注册
     # # Explicitly import all Viskit modules to ensure they are registered
     import flowillower.viskits.scalar_dashboard_viskit 
-    # import flowillower.viskits.treescope_viskit # Assuming you will rename/create this
-    import flowillower.viskits.pygwalker_viskit # Assuming you will rename/create this
+    import flowillower.viskits.treescope_viskit
+    import flowillower.viskits.pygwalker_viskit 
     # import flowillower.viskits.torchlens_viskit # Assuming you will rename/create this
 
 except ImportError as e:
