@@ -25,7 +25,7 @@ except ImportError:
             st.dataframe(self.df)
 
 
-from .base_visualizer import VisualizationComponent, register_visualizer
+from .base_viskit import VisualizationComponent, register_visualizer
 
 @register_visualizer(name="pygwalker_interactive_dashboard")
 class PygwalkerDashboardVisualizer(VisualizationComponent):

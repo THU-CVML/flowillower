@@ -11,7 +11,7 @@ import torch.nn as nn
 import torchlens as tl # Assuming torchlens is installed
 import treescope      # Assuming treescope is installed
 
-from .base_visualizer import VisualizationComponent, register_visualizer
+from .base_viskit import VisualizationComponent, register_visualizer
 
 # Define the data type this visualizer handles.
 # This type represents a collection of step-dependent torchlens outputs (PDF graph + Treescope HTML of tensors)

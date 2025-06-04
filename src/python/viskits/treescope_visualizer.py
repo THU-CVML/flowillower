@@ -13,7 +13,7 @@ import os
 torch.classes.__path__ = [os.path.join(torch.__path__[0], torch.classes.__file__)] 
 import treescope  
 
-from .base_visualizer import VisualizationComponent, register_visualizer
+from .base_viskit import VisualizationComponent, register_visualizer
 
 TREESCOPE_VIEW_COLLECTION_DATA_TYPE = "treescope_view_collection"
 INDIVIDUAL_TREESCOPE_HTML_DATA_TYPE = "single_treescope_html"
