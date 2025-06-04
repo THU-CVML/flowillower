@@ -7,6 +7,16 @@ import shutil
 from typing import Dict, Any, Optional, Type, List
 import tomli
 
+# --- 应用标题和配置 ---
+# --- App Title and Configuration ---
+st.set_page_config(
+    layout="wide", page_title="视件视界 - Flowillower 组件IDE"
+)  # 更新页面标题 Updated page title
+st.title(
+    "🔬 视件视界 - Flowillower 可视化组件IDE"
+)  # 更新应用主标题 Updated app main title
+st.markdown("在此环境中独立测试、调试和预览您的可视化组件。")
+
 # --- 模块导入 (使用基于包的绝对导入) ---
 # --- Module Imports (Using package-based absolute imports) ---
 # 假设 flowillower 包在 Python 路径中
@@ -34,16 +44,6 @@ except ImportError as e:
         "and the 'flowillower' package is in your PYTHONPATH, or you are running this app from the project root."
     )
     st.stop()
-
-# --- 应用标题和配置 ---
-# --- App Title and Configuration ---
-st.set_page_config(
-    layout="wide", page_title="视件视界 - Flowillower 组件IDE"
-)  # 更新页面标题 Updated page title
-st.title(
-    "🔬 视件视界 - Flowillower 可视化组件IDE"
-)  # 更新应用主标题 Updated app main title
-st.markdown("在此环境中独立测试、调试和预览您的可视化组件。")
 
 # --- 会话状态初始化 ---
 # --- Session State Initialization ---
