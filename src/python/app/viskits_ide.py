@@ -30,7 +30,7 @@ try:
     # # Explicitly import all Viskit modules to ensure they are registered
     import flowillower.viskits.scalar_dashboard_viskit 
     # import flowillower.viskits.treescope_viskit # Assuming you will rename/create this
-    # import flowillower.viskits.pygwalker_viskit # Assuming you will rename/create this
+    import flowillower.viskits.pygwalker_viskit # Assuming you will rename/create this
     # import flowillower.viskits.torchlens_viskit # Assuming you will rename/create this
 
 except ImportError as e:
