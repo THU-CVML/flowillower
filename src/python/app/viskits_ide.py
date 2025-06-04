@@ -347,6 +347,11 @@ if active_viskit_instance:
         st.subheader(f"测试 `{SelectedVisKitClass.get_display_name() if SelectedVisKitClass else ''}` 的 `report_data` 方法")
         report_ui_container = st.container(border=True)
         
+        # 添加调试信息
+        if st.session_state.generated_data_sources_map_for_current_config:
+            with st.expander("当前数据源映射 (调试)", expanded=False):
+                st.json(st.session_state.generated_data_sources_map_for_current_config)
+        
         # 用户修复的逻辑：直接在render_report_ui返回时处理
         # User's fix: handle directly when render_report_ui returns
         report_params = active_viskit_instance.render_report_ui(report_ui_container) 
@@ -354,12 +359,66 @@ if active_viskit_instance:
         if report_params and isinstance(report_params, dict): # 如果render_report_ui返回了有效的参数 (意味着用户在其中提交了)
             st.session_state.last_report_params = report_params # 保存以供显示
             try:
+                st.info(f"正在调用 report_data，参数: {report_params}")
                 returned_asset_descriptions = active_viskit_instance.report_data(**report_params) 
                 st.session_state.last_reported_assets = returned_asset_descriptions
                 st.success("`report_data` 调用成功！")
                 
+                # 更新数据源映射
+                if returned_asset_descriptions:
+                    logical_source_name = active_viskit_instance.LOGICAL_DATA_SOURCE_NAME
+                    
+                    # 确保使用正确的集合数据类型
+                    collection_data_type = getattr(active_viskit_instance, 'COLLECTION_DATA_TYPE_FOR_IDE', 'unknown_collection_v1')
+                    
+                    print(f"[DEBUG IDE] 更新数据源映射:")
+                    print(f"[DEBUG IDE] - logical_source_name: {logical_source_name}")
+                    print(f"[DEBUG IDE] - collection_data_type: {collection_data_type}")
+                    print(f"[DEBUG IDE] - returned_asset_descriptions: {returned_asset_descriptions}")
+                    
+                    if logical_source_name not in active_viskit_instance.data_sources_map:
+                        active_viskit_instance.data_sources_map[logical_source_name] = {
+                            "data_type": collection_data_type,
+                            "display_name": f"{active_viskit_instance.instance_id} Collection",
+                            "items": []
+                        }
+                        print(f"[DEBUG IDE] 创建新的数据源集合: {logical_source_name}")
+                    
+                    # 添加新的资产到集合中
+                    for asset_desc in returned_asset_descriptions:
+                        active_viskit_instance.data_sources_map[logical_source_name]["items"].append(asset_desc)
+                        print(f"[DEBUG IDE] 添加资产: {asset_desc['asset_id']}")
+                    
+                    print(f"[DEBUG IDE] 更新后的 data_sources_map: {active_viskit_instance.data_sources_map}")
+                    
+                    # 同步到全局状态
+                    st.session_state.generated_data_sources_map_for_current_config = active_viskit_instance.data_sources_map
+                    
+                    # 关键修复：强制重置数据加载标志，确保视件重新加载数据
+                    # Critical fix: Force reset data loading flag to ensure viskit reloads data
+                    if hasattr(active_viskit_instance, '_data_loaded_once_torchlens'):
+                        active_viskit_instance._data_loaded_once_torchlens = False
+                        print(f"[DEBUG IDE] 重置 torchlens 数据加载标志")
+                    if hasattr(active_viskit_instance, '_data_loaded_once_treescope'):
+                        active_viskit_instance._data_loaded_once_treescope = False
+                        print(f"[DEBUG IDE] 重置 treescope 数据加载标志")
+                    if hasattr(active_viskit_instance, '_data_loaded_once'):
+                        active_viskit_instance._data_loaded_once = False
+                        print(f"[DEBUG IDE] 重置通用数据加载标志")
+                        
+                    # 清空内部数据结构以强制重新加载
+                    # Clear internal data structures to force reload
+                    if hasattr(active_viskit_instance, '_step_data_map'):
+                        active_viskit_instance._step_data_map = {}
+                        print(f"[DEBUG IDE] 清空 _step_data_map")
+                
+                # 强制重新加载数据
+                # Force data reload
+                print(f"[DEBUG IDE] 开始强制重新加载数据...")
                 active_viskit_instance.load_data() 
                 sync_steps_from_viskit(active_viskit_instance) 
+                
+                st.success(f"数据已更新！新增 {len(returned_asset_descriptions)} 个资产。")
                 
                 # 清除 last_report_params 以避免在下次rerun时重复处理 (除非render_report_ui再次返回新值)
                 # Clear last_report_params to avoid reprocessing on next rerun (unless render_report_ui returns new values again)

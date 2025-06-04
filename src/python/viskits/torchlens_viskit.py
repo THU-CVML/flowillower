@@ -124,7 +124,7 @@ class TorchlensFlowVisKit(VisKit):
     # step -> group_id -> {"pdf_path": Path, "html_path": Path, "display_name": str}
     _step_data_map: Dict[int, Dict[str, Dict[str, Any]]] 
     _overall_display_name: str 
-    # _data_loaded_once_torchlens: bool # Declare the flag
+    _data_loaded_once_torchlens: bool  # 添加缺失的标志声明
 
     LOGICAL_DATA_SOURCE_NAME = "torchlens_output_collection" 
     COLLECTION_DATA_TYPE_FOR_IDE = TORCHLENS_OUTPUT_COLLECTION_DATA_TYPE
@@ -137,7 +137,7 @@ class TorchlensFlowVisKit(VisKit):
                  specific_ui_config_dict: Optional[Dict[str, Any]] = None):
         super().__init__(instance_id, trial_root_path, data_sources_map, specific_ui_config_dict)
         self._step_data_map = {} 
-        # self._data_loaded_once_torchlens = False # Initialize the flag
+        self._data_loaded_once_torchlens = False  # 初始化标志
         
         primary_source_info = self._get_data_asset_info(self.LOGICAL_DATA_SOURCE_NAME) 
         self._overall_display_name = "Torchlens Flow Views" 
@@ -222,6 +222,7 @@ class TorchlensFlowVisKit(VisKit):
         html_file_full_path = output_dir_full / html_file_name
 
         try:
+            print(f"正在为步骤 {step} 运行 torchlens.log_forward_pass...")
             model_history = tl.log_forward_pass(
                 model_to_log, input_tensor_to_log, layers_to_save='all', 
                 vis_opt='unrolled', 
@@ -230,24 +231,45 @@ class TorchlensFlowVisKit(VisKit):
                 vis_fileformat="pdf"
             )
             
-            actual_pdf_file_path = Path(torchlens_vis_outpath_prefix + ".pdf")
-            if not actual_pdf_file_path.exists():
-                actual_pdf_file_path = Path(torchlens_vis_outpath_prefix + ".gv.pdf") 
-                if not actual_pdf_file_path.exists():
-                    # If still not found, create a dummy PDF to avoid crashing, and log warning
-                    st.warning(f"Torchlens未能生成PDF图表于 {torchlens_vis_outpath_prefix}.[gv.]pdf. 将创建一个占位符PDF。")
-                    actual_pdf_file_path = output_dir_full / f"{pdf_file_name_base}_placeholder.pdf"
-                    with open(actual_pdf_file_path, "w") as f_dummy_pdf:
-                        f_dummy_pdf.write("%PDF-1.4\n%Dummy PDF for missing torchlens output\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000059 00000 n\n0000000118 00000 n\n0000000184 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n278\n%%EOF")
+            # 更加详细的PDF文件查找逻辑
+            possible_pdf_paths = [
+                Path(torchlens_vis_outpath_prefix + ".pdf"),
+                Path(torchlens_vis_outpath_prefix + ".gv.pdf"),
+                output_dir_full / f"{pdf_file_name_base}.pdf",
+                output_dir_full / f"{pdf_file_name_base}.gv.pdf"
+            ]
+            
+            actual_pdf_file_path = None
+            for pdf_path in possible_pdf_paths:
+                if pdf_path.exists():
+                    actual_pdf_file_path = pdf_path
+                    print(f"找到PDF文件: {actual_pdf_file_path}")
+                    break
+            
+            if actual_pdf_file_path is None:
+                # 列出输出目录中的所有文件以进行调试
+                print(f"未找到PDF文件。输出目录 {output_dir_full} 中的文件:")
+                for file in output_dir_full.iterdir():
+                    print(f"  - {file.name}")
+                
+                # 创建占位符PDF
+                actual_pdf_file_path = output_dir_full / f"{pdf_file_name_base}_placeholder.pdf"
+                placeholder_pdf_content = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000125 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n196\n%%EOF"
+                with open(actual_pdf_file_path, "w") as f_dummy_pdf:
+                    f_dummy_pdf.write(placeholder_pdf_content)
+                print(f"创建了占位符PDF: {actual_pdf_file_path}")
 
-
+            # 生成张量HTML
+            print(f"正在生成张量HTML...")
             tensor_contents_dict = {
                 label: model_history[label].tensor_contents 
                 for label in model_history.layer_labels
             }
             with treescope.using_expansion_strategy(max_height=None):
                 html_str = treescope.render_to_html(tensor_contents_dict, compressed=True)
-            with open(html_file_full_path, "w", encoding="utf-8") as f: f.write(html_str)
+            with open(html_file_full_path, "w", encoding="utf-8") as f: 
+                f.write(html_str)
+            print(f"生成了HTML文件: {html_file_full_path}")
             
             base_relative_path = self.private_storage_path.relative_to(self.trial_root_path) / output_dir_in_private_storage
             pdf_path_in_manifest = (base_relative_path / actual_pdf_file_path.name).as_posix()
@@ -264,17 +286,29 @@ class TorchlensFlowVisKit(VisKit):
                     "tensors_html": html_path_in_manifest
                 }
             }
+            print(f"生成资产描述: {asset_description}")
             return [asset_description]
         except Exception as e:
             print(f"错误: 步骤 {step} 生成Torchlens/Treescope数据失败 (视件: {self.instance_id}, 组: {group_id}): {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
 
     def load_data(self) -> None:
+        print(f"[DEBUG] TorchlensFlowVisKit.load_data() 开始 - 实例: {self.instance_id}")
+        print(f"[DEBUG] 当前 data_sources_map: {self.data_sources_map}")
+        print(f"[DEBUG] LOGICAL_DATA_SOURCE_NAME: {self.LOGICAL_DATA_SOURCE_NAME}")
+        
         self._step_data_map = {} 
         source_collection_info = self._get_data_asset_info(self.LOGICAL_DATA_SOURCE_NAME) 
+        print(f"[DEBUG] 获取到的 source_collection_info: {source_collection_info}")
 
         if not source_collection_info or source_collection_info.get("data_type") != self.COLLECTION_DATA_TYPE_FOR_IDE: 
+            print(f"[DEBUG] 没有找到有效的数据源集合信息")
+            print(f"[DEBUG] 期望的数据类型: {self.COLLECTION_DATA_TYPE_FOR_IDE}")
+            if source_collection_info:
+                print(f"[DEBUG] 实际的数据类型: {source_collection_info.get('data_type')}")
             self._all_available_steps = []
             return
 
@@ -284,8 +318,12 @@ class TorchlensFlowVisKit(VisKit):
             self._all_available_steps = []
             return
             
+        print(f"[DEBUG] 找到 {len(items)} 个数据项")
         temp_all_steps = set()
+        loaded_items_count = 0
+        
         for item_info in items:
+            print(f"[DEBUG] 处理 item: {item_info}")
             if isinstance(item_info, dict) and \
                item_info.get("data_type_original") == INDIVIDUAL_TORCHLENS_OUTPUT_SET_DATA_TYPE and \
                "paths" in item_info and isinstance(item_info["paths"], dict) and \
@@ -305,6 +343,10 @@ class TorchlensFlowVisKit(VisKit):
                     pdf_full_path = (self.trial_root_path / pdf_relative_path).resolve()
                     html_full_path = (self.trial_root_path / html_relative_path).resolve()
                     
+                    print(f"[DEBUG] 检查文件 - PDF: {pdf_full_path.exists()}, HTML: {html_full_path.exists()}")
+                    print(f"[DEBUG] PDF路径: {pdf_full_path}")
+                    print(f"[DEBUG] HTML路径: {html_full_path}")
+                    
                     if pdf_full_path.exists() and html_full_path.exists():
                         if step not in self._step_data_map:
                             self._step_data_map[step] = {}
@@ -314,6 +356,8 @@ class TorchlensFlowVisKit(VisKit):
                             "display_name": asset_display_name
                         }
                         temp_all_steps.add(step)
+                        loaded_items_count += 1
+                        print(f"[DEBUG] 成功加载步骤 {step}, 组 {group_id}")
                     else:
                         st.warning(f"视件 {self.instance_id}: 步骤 {step}, 组 {group_id} 的一个或多个文件未找到。PDF exists: {pdf_full_path.exists()}, HTML exists: {html_full_path.exists()}")
                 except ValueError:
@@ -321,9 +365,16 @@ class TorchlensFlowVisKit(VisKit):
                 except Exception as e:
                     st.error(f"视件 {self.instance_id}: 处理item {item_info} 出错: {e}")
             else:
-                st.warning(f"视件 {self.instance_id}: 数据源中的item格式无效或缺少字段: {item_info}")
+                print(f"[DEBUG] 跳过无效item: {item_info}")
+                print(f"[DEBUG] - 是字典: {isinstance(item_info, dict)}")
+                if isinstance(item_info, dict):
+                    print(f"[DEBUG] - data_type_original: {item_info.get('data_type_original')} (期望: {INDIVIDUAL_TORCHLENS_OUTPUT_SET_DATA_TYPE})")
+                    print(f"[DEBUG] - 有paths: {'paths' in item_info}")
+                    print(f"[DEBUG] - 有related_step: {'related_step' in item_info}")
+                    print(f"[DEBUG] - 有group_id: {'group_id' in item_info}")
         
         self._all_available_steps = sorted(list(temp_all_steps))
+        print(f"[DEBUG] 加载完成 - 总共加载了 {loaded_items_count} 个有效项，可用步骤: {self._all_available_steps}")
 
 
     def render_config_ui(self, config_container) -> bool:
@@ -386,9 +437,12 @@ class TorchlensFlowVisKit(VisKit):
             if self.render_config_ui(st.container()): st.rerun() 
 
         if not self._step_data_map: 
-            # if not self._data_loaded_once_torchlens: self.load_data(); self._data_loaded_once_torchlens = True 
-            self.load_data() 
-            if not self._step_data_map: st.info(f"视件 {self.instance_id}: 没有可显示的Torchlens数据。"); return
+            if not self._data_loaded_once_torchlens: 
+                self.load_data()
+                self._data_loaded_once_torchlens = True 
+            if not self._step_data_map: 
+                st.info(f"视件 {self.instance_id}: 没有可显示的Torchlens数据。")
+                return
 
         if not self._all_available_steps:
             if self._step_data_map: self._all_available_steps = sorted(list(self._step_data_map.keys()))

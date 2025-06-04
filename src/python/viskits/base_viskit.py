@@ -19,10 +19,10 @@ try:
         STREAMLIT_PYDANTIC_AVAILABLE = True
     except ImportError:
         print("提示: streamlit-pydantic 未安装。配置UI将需要手动实现或使用简化的默认UI。")
-        print("Suggestion: pip install streamlit-pydantic")
+        # print("Suggestion: pip install streamlit-pydantic") # Comment out for less noise
 except ImportError:
     print("提示: Pydantic V2 未安装。基于Pydantic的配置模型将不可用。")
-    print("Suggestion: pip install pydantic~=2.0")
+    # print("Suggestion: pip install pydantic~=2.0") # Comment out for less noise
 
 ConfigPydanticModelType = TypeVar('ConfigPydanticModelType', bound='BaseModel' if PYDANTIC_AVAILABLE else Any)
 
@@ -41,8 +41,8 @@ def get_viskit_class(type_name: str) -> Optional[Type["VisKit"]]:
 
 class VisKit(ABC): 
     ui_config: Any 
-    LOGICAL_DATA_SOURCE_NAME = "default_data_source" # Default logical name for primary data
-    COLLECTION_DATA_TYPE_FOR_IDE = "generic_ide_collection_v1" # Default collection type for IDE if many assets
+    LOGICAL_DATA_SOURCE_NAME = "default_data_source" 
+    COLLECTION_DATA_TYPE_FOR_IDE = "generic_ide_collection_v1" 
 
     def __init__(self,
                  instance_id: str, 
@@ -129,17 +129,14 @@ class VisKit(ABC):
         pass 
 
 
-    def _get_data_asset_info(self, logical_name: str = "default") -> Optional[Dict[str, Any]]:
+    def _get_data_asset_info(self, logical_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         # If logical_name is not provided, use the class's default logical name
-        if logical_name == "default":
-            logical_name_to_use = getattr(self, 'LOGICAL_DATA_SOURCE_NAME', 'default')
-        else:
-            logical_name_to_use = logical_name
+        logical_name_to_use = logical_name or getattr(self, 'LOGICAL_DATA_SOURCE_NAME', 'default_data_source')
         return self.data_sources_map.get(logical_name_to_use)
 
 
-    def _get_data_asset_path(self, logical_name: str = "default") -> Optional[Path]:
-        asset_info = self._get_data_asset_info(logical_name) # Uses the potentially overridden logical_name
+    def _get_data_asset_path(self, logical_name: Optional[str] = None) -> Optional[Path]:
+        asset_info = self._get_data_asset_info(logical_name) 
         if asset_info and "path" in asset_info:
             path_str_or_obj = asset_info["path"]
             if not isinstance(path_str_or_obj, (str, Path)):
@@ -211,9 +208,6 @@ class VisKit(ABC):
     def _generate_example_payloads_and_steps(cls, 
                                              data_sources_config: Optional[Dict[str, Any]] = None
                                              ) -> List[Dict[str, Any]]:
-        # Subclasses must implement this to provide a list of dicts,
-        # each dict being the kwargs for a single call to report_data.
-        # Example: [{"data_payload": ..., "step": ...}, {"data_payload": ..., "step": ...}]
         return [] 
         
     @classmethod
@@ -261,48 +255,50 @@ class VisKit(ABC):
         # --- Logic to construct data_sources_map for the IDE ---
         # This map tells the Viskit instance (when re-instantiated in IDE) where to find the data it just generated.
         
-        # Strategy:
-        # 1. If all reported assets point to the *same* 'path' (e.g., an aggregating log file),
-        #    then the map will have one entry using cls.LOGICAL_DATA_SOURCE_NAME.
-        # 2. If reported assets have *different* 'paths' (e.g., one file per step for Treescope),
-        #    then the map will have one entry (key cls.LOGICAL_DATA_SOURCE_NAME) whose value
-        #    is a "collection" descriptor, containing all individual asset descriptions in an 'items' list.
-        #    The 'data_type' of this collection descriptor will be cls.COLLECTION_DATA_TYPE_FOR_IDE.
+        # Determine if all reported assets point to the same underlying file/resource
+        # by checking if all 'path' values (if they exist and are primary identifiers) are the same.
+        # For Viskits like Treescope/Torchlens, each report_data call generates a *new* distinct asset (file set).
+        # For Viskits like ScalarDashboard, each report_data call *appends* to the *same* log file.
+        
+        # We will count unique asset_ids returned. If only one, it's likely an aggregating Viskit.
+        # If multiple, it's likely a collection-type Viskit.
+        unique_asset_ids_reported = {desc['asset_id'] for desc in all_reported_assets if isinstance(desc, dict) and 'asset_id' in desc}
+        logical_ds_name_for_map = getattr(cls, 'LOGICAL_DATA_SOURCE_NAME', 'default_data_source') # Subclass should define this
 
-        unique_asset_paths = {desc['path'] for desc in all_reported_assets if isinstance(desc, dict) and 'path' in desc}
-        logical_ds_name_for_map = getattr(cls, 'LOGICAL_DATA_SOURCE_NAME', 'default_data_source')
-
-        if len(unique_asset_paths) == 1: 
-            # All reports updated the same underlying asset/file.
-            # Use the last asset description as it should be the most up-to-date.
+        if len(unique_asset_ids_reported) == 1 and all_reported_assets: 
+            # All reports likely updated the same underlying asset/file.
+            # Use the last asset description (it should point to the single, aggregated asset).
             final_asset_desc = all_reported_assets[-1]
+            # print(f"[DEBUG] generate_example_data (single asset mode) for {cls.__name__} returning: {{'{logical_ds_name_for_map}': {final_asset_desc}}}")
             return {logical_ds_name_for_map: final_asset_desc}
-        elif len(unique_asset_paths) > 1: 
+        elif len(unique_asset_ids_reported) > 1: 
             # Multiple distinct assets were reported (e.g., one file per step).
-            # The Viskit's load_data method will expect a collection.
+            # The Viskit's load_data method will expect a collection descriptor.
             collection_data_type = getattr(cls, 'COLLECTION_DATA_TYPE_FOR_IDE', f"{cls.__name__}_ide_collection_v1")
             
-            # Try to infer a display name for the collection
-            # This could come from a common group_id or the Viskit's display name
-            collection_display_name = f"{cls.get_display_name()} - 示例数据"
+            collection_display_name = f"{cls.get_display_name()} - 示例数据" # Default
+            # Try to get a more specific collection name if group_id was consistent
             group_id_source = (data_sources_config or {}).get("group_id")
-            if not group_id_source and all_reported_assets:
+            if not group_id_source and all_reported_assets: # Try to infer from first reported asset
                 group_id_source = all_reported_assets[0].get("group_id", ide_instance_id)
-            if group_id_source:
+            
+            if group_id_source: # If we have a group_id, use it for the collection display name
                 collection_display_name = f"{group_id_source.replace('_',' ').title()} - 示例集合"
+            
+            collection_asset_id = f"collection_for_{ide_instance_id}_{group_id_source if group_id_source else 'multi_group'}"
 
-
+            # print(f"[DEBUG] generate_example_data (collection mode) for {cls.__name__} returning collection with {len(all_reported_assets)} items.")
             return {
                 logical_ds_name_for_map: { 
-                    "asset_id": f"collection_for_{ide_instance_id}_{group_id_source}", # Unique ID for the collection itself
-                    "data_type": collection_data_type, # The type load_data will check for a collection
+                    "asset_id": collection_asset_id, 
+                    "data_type": collection_data_type, 
                     "display_name": collection_display_name,
-                    "items": all_reported_assets, # List of individual asset descriptions
-                    "group_id_source": group_id_source # Original group_id if relevant
+                    "items": all_reported_assets, 
+                    "group_id_source": group_id_source 
                 }
             }
-        else: # No assets with paths were reported
-            st.warning(f"视件 '{cls.get_display_name()}' 的 report_data 未返回任何带有效路径的资产描述。")
+        else: 
+            st.warning(f"视件 '{cls.get_display_name()}' 的 report_data 未返回任何带有效asset_id的资产描述。")
             return {}
 
 

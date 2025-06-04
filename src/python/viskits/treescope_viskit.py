@@ -258,10 +258,19 @@ class TreescopeModelViewVisKit(VisKit):
 
 
     def load_data(self) -> None:
+        print(f"[DEBUG] TreescopeModelViewVisKit.load_data() 开始 - 实例: {self.instance_id}")
+        print(f"[DEBUG] 当前 data_sources_map: {self.data_sources_map}")
+        print(f"[DEBUG] LOGICAL_DATA_SOURCE_NAME: {self.LOGICAL_DATA_SOURCE_NAME}")
+        
         self._step_data_map = {} 
         source_collection_info = self._get_data_asset_info(self.LOGICAL_DATA_SOURCE_NAME) 
+        print(f"[DEBUG] 获取到的 source_collection_info: {source_collection_info}")
 
         if not source_collection_info or source_collection_info.get("data_type") != self.COLLECTION_DATA_TYPE_FOR_IDE: 
+            print(f"[DEBUG] 没有找到有效的数据源集合信息")
+            print(f"[DEBUG] 期望的数据类型: {self.COLLECTION_DATA_TYPE_FOR_IDE}")
+            if source_collection_info:
+                print(f"[DEBUG] 实际的数据类型: {source_collection_info.get('data_type')}")
             self._all_available_steps = []
             return
 
@@ -271,8 +280,12 @@ class TreescopeModelViewVisKit(VisKit):
             self._all_available_steps = []
             return
             
+        print(f"[DEBUG] 找到 {len(items)} 个数据项")
         temp_all_steps = set()
+        loaded_items_count = 0
+        
         for item_info in items:
+            print(f"[DEBUG] 处理 item: {item_info}")
             if isinstance(item_info, dict) and \
                item_info.get("data_type_original") == INDIVIDUAL_TREESCOPE_HTML_DATA_TYPE and \
                "path" in item_info and "related_step" in item_info and "group_id" in item_info:
@@ -283,12 +296,16 @@ class TreescopeModelViewVisKit(VisKit):
                     full_path = (self.trial_root_path / relative_path_str).resolve()
                     asset_display_name = item_info.get("display_name", group_id) # 用于子标题 Get display name for subheader
                     
+                    print(f"[DEBUG] 检查文件: {full_path.exists()} - {full_path}")
+                    
                     if full_path.exists() and full_path.is_file():
                         if step not in self._step_data_map:
                             self._step_data_map[step] = {}
                         # 存储路径和显示名称 Store path and display name
                         self._step_data_map[step][group_id] = {"path": full_path, "display_name": asset_display_name}
                         temp_all_steps.add(step)
+                        loaded_items_count += 1
+                        print(f"[DEBUG] 成功加载步骤 {step}, 组 {group_id}")
                     else:
                         st.warning(f"视件 {self.instance_id}: HTML文件未找到: {full_path} (步骤 {step}, 组 {group_id})")
                 except ValueError:
@@ -296,9 +313,16 @@ class TreescopeModelViewVisKit(VisKit):
                 except Exception as e:
                     st.error(f"视件 {self.instance_id}: 处理item {item_info} 出错: {e}")
             else:
-                st.warning(f"视件 {self.instance_id}: 数据源中的item格式无效或缺少group_id: {item_info}")
+                print(f"[DEBUG] 跳过无效item: {item_info}")
+                print(f"[DEBUG] - 是字典: {isinstance(item_info, dict)}")
+                if isinstance(item_info, dict):
+                    print(f"[DEBUG] - data_type_original: {item_info.get('data_type_original')} (期望: {INDIVIDUAL_TREESCOPE_HTML_DATA_TYPE})")
+                    print(f"[DEBUG] - 有path: {'path' in item_info}")
+                    print(f"[DEBUG] - 有related_step: {'related_step' in item_info}")
+                    print(f"[DEBUG] - 有group_id: {'group_id' in item_info}")
         
         self._all_available_steps = sorted(list(temp_all_steps))
+        print(f"[DEBUG] 加载完成 - 总共加载了 {loaded_items_count} 个有效项，可用步骤: {self._all_available_steps}")
 
 
     def render_config_ui(self, config_container) -> bool:
