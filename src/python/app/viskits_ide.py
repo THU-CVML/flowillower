@@ -6,6 +6,11 @@ import json
 import shutil
 from typing import Dict, Any, Optional, Type, List
 import tomli 
+# 必须有这几行，阻止 PyTorch 报错
+# https://github.com/VikParuchuri/marker/issues/442
+import os
+import torch
+torch.classes.__path__ = [os.path.join(torch.__path__[0], torch.classes.__file__)] 
 
 # --- 应用标题和配置 ---
 st.set_page_config(layout="wide", page_title="视件视界 - Flowillower 视件IDE") # Changed "组件" to "视件"
@@ -56,6 +61,8 @@ if "all_simulated_steps" not in st.session_state:
     st.session_state.all_simulated_steps = []
 if "last_reported_assets" not in st.session_state: 
     st.session_state.last_reported_assets = None
+if "last_report_params" not in st.session_state:
+    st.session_state.last_report_params = None
 
 
 def cleanup_temp_dir(path_str):
@@ -114,6 +121,7 @@ with st.sidebar:
         st.session_state.current_simulated_global_step = 0
         st.session_state.viskit_specific_ui_config_str = "{}"  # Renamed
         st.session_state.last_reported_assets = None 
+        st.session_state.last_report_params = None 
         st.rerun()
 
 
@@ -167,6 +175,7 @@ with st.sidebar:
                 sync_steps_from_viskit(active_viskit_for_load) # Renamed
                 
                 st.session_state.last_reported_assets = None 
+                st.session_state.last_report_params = None 
                 st.rerun() 
 
             except json.JSONDecodeError:
@@ -209,6 +218,7 @@ with st.sidebar:
                 st.session_state.generated_data_sources_map_for_current_config = newly_generated_map 
                 st.success(f"'{SelectedVisKitClass.get_display_name()}' 的示例数据已生成/覆盖。")
                 st.session_state.last_reported_assets = None 
+                st.session_state.last_report_params = None 
                 
                 if st.session_state.active_viskit_instance: # Renamed
                     st.session_state.active_viskit_instance.data_sources_map = newly_generated_map # 更新已存在实例的map
@@ -337,27 +347,35 @@ if active_viskit_instance: # Renamed
         st.subheader(f"测试 `{SelectedVisKitClass.get_display_name() if SelectedVisKitClass else ''}` 的 `report_data` 方法")
         report_ui_container = st.container(border=True)
         
-        report_params = active_viskit_instance.render_report_ui(report_ui_container) # Renamed
+        report_params = active_viskit_instance.render_report_ui(report_ui_container) 
+        has_new_report_request = report_params is not None and isinstance(report_params, dict)
 
-        if report_params and isinstance(report_params, dict):
+        if has_new_report_request:
+            st.session_state.last_report_params = report_params
+            try:
+                returned_asset_descriptions = active_viskit_instance.report_data(**report_params) # Renamed
+                st.session_state.last_reported_assets = returned_asset_descriptions
+                st.success("`report_data` 调用成功！")
+                
+                active_viskit_instance.load_data() # Renamed
+                sync_steps_from_viskit(active_viskit_instance) # Renamed
+                
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"`report_data` 调用失败: {e}")
+                st.exception(e)
+                st.session_state.last_reported_assets = {"error": str(e)}
+        else:
+            pass # 不清空上一次的结果。
+
+        if st.session_state.last_report_params and isinstance(st.session_state.last_report_params, dict):
             st.markdown("---")
-            st.write("`render_report_ui` 返回的参数:")
-            st.json(report_params)
+            st.write("`report_data` 的调用参数")
+            st.json(st.session_state.last_report_params)
 
-            if st.button(f"使用以上参数调用 `report_data`", type="primary", key=f"call_report_data_btn_{st.session_state.selected_viskit_type_name}"):
-                try:
-                    returned_asset_descriptions = active_viskit_instance.report_data(**report_params) # Renamed
-                    st.session_state.last_reported_assets = returned_asset_descriptions 
-                    st.success("`report_data` 调用成功！")
-                    
-                    active_viskit_instance.load_data() # Renamed
-                    sync_steps_from_viskit(active_viskit_instance) # Renamed
-                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"`report_data` 调用失败: {e}")
-                    st.exception(e)
-                    st.session_state.last_reported_assets = {"error": str(e)}
+            # if st.button(f"使用以上参数调用 `report_data`", type="primary", key=f"call_report_data_btn_{st.session_state.selected_viskit_type_name}"):
+            #     print("按钮单击")
         
         if st.session_state.last_reported_assets is not None:
             st.markdown("---")
@@ -377,8 +395,9 @@ if st.sidebar.button("清理当前会话的临时Trial目录"):
     st.session_state.all_simulated_steps = []
     st.session_state.current_simulated_global_step = 0
     st.session_state.last_reported_assets = None
+    st.session_state.last_report_params = None
     st.rerun()
 
 # 导入版本信息 (Import version information)
-# from flowillower.help import version # 假设 help.py 在 flowillower 包的根目录
-# st.sidebar.caption(f"Flowillower 视件视界 - 版本 {version}")
+from flowillower.help import version # 假设 help.py 在 flowillower 包的根目录
+st.sidebar.caption(f"Flowillower 视件视界 - 版本 {version}")
